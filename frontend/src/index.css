@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@layer base {
+  body {
+    @apply font-sans bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-slate-100 min-h-screen antialiased selection:bg-purple-500 selection:text-white;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 shadow-xl;
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600;
+  }
+}
+
 @theme {
     --animate-blob: blob 7s infinite;
     --animate-float: float 6s ease-in-out infinite;

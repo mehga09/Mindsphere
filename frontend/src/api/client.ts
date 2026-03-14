@@ -23,7 +23,17 @@ client.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/refresh')) {
       originalRequest._retry = true;
       try {
-        await client.post('/api/auth/refresh');
+        const res = await client.post('/api/auth/refresh');
+        const newAccessToken = res.data.accessToken;
+        
+        // Persist new token
+        const userStr = localStorage.getItem('user');
+        if (userStr && newAccessToken) {
+          const user = JSON.parse(userStr);
+          user.accessToken = newAccessToken;
+          localStorage.setItem('user', JSON.stringify(user));
+        }
+
         return client(originalRequest);
       } catch (refreshError) {
         localStorage.removeItem('user');

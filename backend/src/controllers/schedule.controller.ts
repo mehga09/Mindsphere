@@ -1,5 +1,6 @@
 
 import { Response } from 'express';
+import { prisma } from '../db';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { StudyPlanService } from '../services/scheduler.service';
@@ -28,6 +29,8 @@ export const generateSchedule = async (req: AuthRequest, res: Response) => {
     const params = GenerateSchema.parse(req.body);
     const startDate = params.startDate ? new Date(params.startDate) : new Date();
 
+    console.log(`[DEBUG] generateSchedule: userId=${userId}, topic=${params.topic}`);
+
     const plan = await studyPlanService.generatePlan({
       userId,
       topic: params.topic,
@@ -35,6 +38,8 @@ export const generateSchedule = async (req: AuthRequest, res: Response) => {
       endDate: new Date(params.endDate),
       startDate: startDate
     });
+
+    console.log(`[DEBUG] generateSchedule: Plan created with ID=${plan?.id}`);
 
     res.json(plan);
   } catch (error: any) {
@@ -49,9 +54,12 @@ export const generateSchedule = async (req: AuthRequest, res: Response) => {
 export const getSchedule = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    console.log(`[DEBUG] getSchedule called for user: ${user?.email} (ID: ${userId})`);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const plan = await studyPlanService.getPlan(userId);
+    console.log(`[DEBUG] getPlan result for ${user?.email}: ${plan ? 'FOUND' : 'NOT FOUND'}`);
     res.json(plan || { message: 'No active study plan found' });
   } catch (error) {
     console.error(error);

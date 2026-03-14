@@ -18,6 +18,7 @@ webpush.setVapidDetails(
 );
 
 import { EmailService } from '../services/email.service';
+import { LlmService } from '../services/llm.service';
 const emailService = new EmailService();
 
 const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
@@ -144,16 +145,10 @@ import { ContentFetcherService } from '../services/contentFetcher.service';
 
 const hydratePlanWorker = new Worker(QUEUES.HYDRATE_PLAN, async (job: Job) => {
   console.log(`Hydrating plan ${job.data.planId}`);
-  const { planId, topic, difficulty } = job.data;
+  const { planId, topic, difficulty, tasks } = job.data;
 
   try {
     const fetcher = new ContentFetcherService();
-    // Fetch a pool of content
-    const contents = await fetcher.fetchContentForTopic({
-      topic,
-      difficulty,
-      limit: 20 // Fetch enough to cover unique days if possible
-    });
 
     // Find sessions without content
     const sessions = await prisma.studySession.findMany({
@@ -161,17 +156,73 @@ const hydratePlanWorker = new Worker(QUEUES.HYDRATE_PLAN, async (job: Job) => {
       orderBy: { dayOffset: 'asc' }
     });
 
-    // Distribute content
-    for (let i = 0; i < sessions.length; i++) {
-      const content = contents[i % contents.length]; // cycle if not enough
-      if (content) {
+    const usedContentIds = new Set<string>();
+    const taskVideoMap = new Map<string, any[]>();
+
+    const llm = new LlmService();
+    const usedGlobalVideoIds = new Set<string>();
+
+    // Distribute content based on the generated tasks linked to sessions
+    for (const session of sessions) {
+      console.log(`Processing session ${session.id}: ${session.topic} (isPractice: ${session.isPractice})`);
+      if (session.isPractice) {
+        // Handle different types of practice/extra sessions
+        if (session.topic.startsWith('Comprehensive Quiz:')) {
+          console.log(`Generating quiz for ${topic}`);
+          const quizQuestions = await llm.generateComprehensiveQuiz(topic);
+          const specificTopic = `Comprehensive Quiz on ${topic}`;
+          await prisma.studySession.update({
+            where: { id: session.id },
+            data: { topic: specificTopic }
+          });
+        } else if (session.topic.startsWith('Milestone Project:')) {
+          console.log(`Generating project for ${topic}`);
+          const projectPrompt = await llm.generateMilestoneProject(topic);
+          await prisma.studySession.update({
+            where: { id: session.id },
+            data: { topic: `Milestone Project: ${projectPrompt}` }
+          });
+        } else {
+          console.log(`Generating exercises for ${session.topic}`);
+          const exercises = await llm.generatePracticeExercises(session.topic);
+          await prisma.studySession.update({
+            where: { id: session.id },
+            data: { 
+               topic: `${session.topic}\n\nExercise 1: ${exercises[0] || ''}\nExercise 2: ${exercises[1] || ''}` 
+            }
+          });
+        }
+        continue;
+      }
+
+      // Fetch specific video for this task
+      console.log(`Fetching videos for session: "${session.topic}" in plan: ${planId}`);
+      const contents = await fetcher.fetchSpecificVideoForTask(session.topic, topic);
+      console.log(`Found ${contents?.length || 0} potential video(s) for "${session.topic}"`);
+
+      if (contents && contents.length > 0) {
+        // Global Deduplication: Find the first content NOT used yet in this plan
+        let bestContent = contents.find(c => {
+          const contentKey = c.externalId || c.id;
+          return !usedGlobalVideoIds.has(contentKey);
+        }) || contents[0];
+
+        console.log(`Assigning content ${bestContent.id} (${bestContent.title}) to session ${session.id}`);
+
+        // Add to global set to prevent repetition in the NEXT sessions
+        const assignedKey = bestContent.externalId || bestContent.id;
+        usedGlobalVideoIds.add(assignedKey);
+
         await prisma.studySession.update({
-          where: { id: sessions[i].id },
-          data: { contentId: content.id }
+          where: { id: session.id },
+          data: { contentId: bestContent.id }
         });
+      } else {
+        console.warn(`No videos found for task: ${session.topic}`);
       }
     }
-    console.log(`Plan ${planId} hydrated with content.`);
+
+    console.log(`Plan ${planId} hydrated with targeted, distinct content.`);
 
     // Notify User
     const plan = await prisma.studyPlan.findUnique({ where: { id: planId } });
@@ -184,7 +235,7 @@ const hydratePlanWorker = new Worker(QUEUES.HYDRATE_PLAN, async (job: Job) => {
       });
     }
   } catch (error) {
-    console.error('Hydration failed', error);
+    console.error(`Hydration failed for plan ${job.data.planId}:`, error);
   }
 }, { connection });
 
@@ -196,11 +247,7 @@ const dailyRecommendationWorker = new Worker(QUEUES.DAILY_RECOMMENDATIONS, async
   console.log('Starting Daily Recommendation Job');
 
   try {
-    const users = await prisma.user.findMany({
-      where: {
-        NOT: { email: null }
-      }
-    });
+    const users = await prisma.user.findMany({});
 
     console.log(`Found ${users.length} users for daily recs.`);
 

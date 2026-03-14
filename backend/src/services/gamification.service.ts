@@ -64,33 +64,27 @@ export class GamificationService {
     const now = new Date();
     const lastActivity = new Date(user.lastActivity);
 
-    // Check if last activity was yesterday
-    const isYesterday = (
-      now.getDate() - lastActivity.getDate() === 1 &&
-      now.getMonth() === lastActivity.getMonth() &&
-      now.getFullYear() === lastActivity.getFullYear()
-    );
+    // Normalize both dates to midnight local time to calculate day difference correctly
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastActivityStart = new Date(lastActivity.getFullYear(), lastActivity.getMonth(), lastActivity.getDate());
 
-    // If successfully yesterday, increment streak
-    if (isYesterday) {
+    const diffTime = todayStart.getTime() - lastActivityStart.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      // Last activity was exactly yesterday
       await prisma.user.update({
         where: { id: userId },
         data: { currentStreak: { increment: 1 } }
       });
-    } else if (now.getDate() !== lastActivity.getDate()) {
-      // If gap is more than 1 day (and not today), reset streak
-      // Wait, if last activity was today, we do nothing.
-      // If gap > 1 day, reset.
-      const diffTime = Math.abs(now.getTime() - lastActivity.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays > 1) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { currentStreak: 1 } // Reset to 1 since they are active today
-        });
-      }
+    } else if (diffDays > 1) {
+      // Missed a day or more, reset streak to 1
+      await prisma.user.update({
+        where: { id: userId },
+        data: { currentStreak: 1 }
+      });
     }
+    // If diffDays === 0, active today, do nothing.
   }
 }
 

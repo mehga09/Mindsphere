@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
-import { processSessionCompletion } from '../services/gamification.service';
+import { GamificationService } from '../services/gamification.service';
 
 
 export const completeSession = async (req: Request, res: Response) => {
   try {
     const { userId, durationSeconds } = req.body;
 
-    const result = await processSessionCompletion(
+    await GamificationService.updateStreak(userId);
+    const result = await GamificationService.awardXP(
       userId,
       durationSeconds
     );

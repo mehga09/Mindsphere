@@ -30,7 +30,8 @@ npx prisma migrate dev
 npx prisma db seed
 
 # Start API Server
-npm run dev
+
+
 ```
 *Backend runs on http://localhost:3000*
 

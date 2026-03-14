@@ -23,46 +23,59 @@ export default function Register() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
-        <h2 className="mb-6 text-2xl font-bold text-center text-gray-900">Create Account</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
+      {/* Background blobs */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-cyan-500/20 blur-[100px] animate-blob" />
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-pink-500/20 blur-[100px] animate-blob animation-delay-2000" />
+      </div>
+
+      <div className="w-full max-w-md rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 p-8 shadow-2xl animate-fade-in">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-300">Join MindSphere</h1>
+          <h2 className="mt-2 text-xl font-medium text-gray-200">Start Your Journey</h2>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Name</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
             <input
               {...register('name')}
               type="text"
-              className="mt-1 block w-full rounded-md border border-gray-300 p-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="block w-full rounded-lg bg-white/5 border border-white/10 p-2.5 text-white placeholder-gray-400 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none transition-all"
+              placeholder="John Doe"
             />
-            {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
+            {errors.name && <p className="mt-1 text-sm text-red-400">{errors.name.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
             <input
               {...register('email')}
               type="email"
-              className="mt-1 block w-full rounded-md border border-gray-300 p-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="block w-full rounded-lg bg-white/5 border border-white/10 p-2.5 text-white placeholder-gray-400 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none transition-all"
+              placeholder="you@example.com"
             />
-            {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+            {errors.email && <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
             <input
               {...register('password')}
               type="password"
-              className="mt-1 block w-full rounded-md border border-gray-300 p-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="block w-full rounded-lg bg-white/5 border border-white/10 p-2.5 text-white placeholder-gray-400 focus:border-cyan-500 focus:ring-cyan-500 focus:outline-none transition-all"
+              placeholder="Create a strong password"
             />
-            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
+            {errors.password && <p className="mt-1 text-sm text-red-400">{errors.password.message}</p>}
           </div>
           <button
             type="submit"
-            className="w-full rounded-md bg-indigo-600 py-2 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 py-3 text-white font-semibold shadow-lg hover:from-cyan-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 transform transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            Register
+            Create Account
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Already have an account? <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">Sign In</Link>
+        <p className="mt-6 text-center text-sm text-gray-400">
+          Already have an account? <Link to="/login" className="font-medium text-cyan-400 hover:text-cyan-300 transition-colors">Sign In</Link>
         </p>
       </div>
     </div>

@@ -30,9 +30,12 @@ export default function Home() {
     const fetchRecs = async () => {
       try {
         const res = await client.get('/api/content/recommendations');
-        setRecommendations(res.data);
+        if (Array.isArray(res.data)) {
+           setRecommendations(res.data);
+        }
       } catch (error) {
         console.error('Failed to fetch recommendations', error);
+        // Keep old recommendations on transient error
       } finally {
         setLoading(false);
       }
@@ -72,41 +75,41 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+    <div className="min-h-screen pb-20">
+      <header className="sticky top-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/10 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">MindSphere</h1>
-            <p className="text-sm text-gray-500">Welcome back, {user?.name}</p>
+            <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-300">MindSphere</h1>
+            <p className="text-sm text-gray-300">Welcome back, {user?.name}</p>
           </div>
           <div className="flex gap-4 items-center">
-            <button onClick={handleEnableNotifications} className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-200">
+            <button onClick={handleEnableNotifications} className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1 rounded-full hover:bg-purple-500/30 transition-colors">
               Enable Notifications
             </button>
-            <Link to="/survey" className="text-sm font-medium text-gray-600 hover:text-indigo-600">Preferences</Link>
-            <Link to="/schedule" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">My Schedule</Link>
-            <Link to="/analytics" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">Insights</Link>
+            <Link to="/survey" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Preferences</Link>
+            <Link to="/schedule" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">My Schedule</Link>
+            <Link to="/analytics" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Insights</Link>
             {user?.role === 'ADMIN' && (
-              <Link to="/admin" className="text-sm font-medium text-red-600 hover:text-red-800">Moderation</Link>
+              <Link to="/admin" className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Moderation</Link>
             )}
-            <button onClick={logout} className="text-sm font-medium text-gray-500 hover:text-gray-900 border-l pl-4 ml-2">
+            <button onClick={logout} className="text-sm font-medium text-gray-400 hover:text-white border-l border-white/20 pl-4 ml-2 transition-colors">
               Logout
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        <section className="mb-8">
+      <main className="max-w-5xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+        <section>
           <div className="flex justify-between items-baseline mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Focus of the Day</h2>
-            <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Anti-Doomscroll Mode</span>
+            <h2 className="text-2xl font-bold text-white">Focus of the Day</h2>
+            <span className="text-sm text-purple-200 bg-purple-900/40 border border-purple-500/30 px-3 py-1 rounded-full">Anti-Doomscroll Mode</span>
           </div>
 
           {recommendations.length === 0 ? (
-            <div className="text-center p-12 bg-white rounded-xl shadow-sm">
-              <p className="text-lg text-gray-600 mb-4">No recommendations yet.</p>
-              <Link to="/survey" className="text-indigo-600 font-medium">Update your interests</Link>
+            <div className="text-center p-12 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
+              <p className="text-lg text-gray-300 mb-4">No recommendations yet.</p>
+              <Link to="/survey" className="text-purple-400 hover:text-purple-300 font-medium">Update your interests</Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -118,8 +121,9 @@ export default function Home() {
         </section>
 
         {/* Gamification Widget Placeholder */}
-        <section className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-          <div className="flex justify-between items-center">
+        <section className="bg-gradient-to-r from-indigo-600/80 to-purple-600/80 backdrop-blur-md rounded-2xl p-6 text-white shadow-xl border border-white/20 relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/20 rounded-full blur-3xl"></div>
+          <div className="flex justify-between items-center relative z-10">
             <div>
               <h3 className="text-lg font-bold">Your Streak</h3>
               <p className="text-3xl font-extrabold mt-1">🔥 {user?.currentStreak || 0} Days</p>

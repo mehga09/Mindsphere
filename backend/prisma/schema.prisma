@@ -130,9 +130,20 @@ model Content {
   sourceParams Json?   // Store extra metadata from API
   
   studySessions StudySession[]
+  quiz          Quiz? // One-to-one relation for simplicity, or one-to-many if multiple quizzes per content
 
   @@index([createdAt])
   @@index([type])
+}
+
+model Quiz {
+  id          String   @id @default(uuid())
+  contentId   String   @unique
+  questions   Json     // Store array of { question: string, options: string[], correctIndex: number, explanation: string }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  content     Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
 }
 
 model StudyPlan {
@@ -146,6 +157,7 @@ model StudyPlan {
   updatedAt     DateTime @updatedAt
   
   sessions      StudySession[]
+  tasks         LearningTask[]
   user          User     @relation(fields: [userId], references: [id])
 }
 
@@ -153,9 +165,16 @@ model StudySession {
   id            String   @id @default(uuid())
   planId        String
   dayOffset     Int      // 0, 1, 2... from startDate
+  dayNumber     Int      // 1, 2, 3... (for UI display)
   date          DateTime // Actual date
   topic         String   // Sub-topic/Focus for the day
   isCompleted   Boolean  @default(false)
+  
+  sessionTime   String?  // Suggested time (e.g., "09:00")
+  isPractice    Boolean  @default(false)
+  
+  taskId        String?
+  task          LearningTask? @relation(fields: [taskId], references: [id])
   
   contentId     String?
   content       Content? @relation(fields: [contentId], references: [id])
@@ -349,4 +368,17 @@ model LearningSchedule {
   user      User     @relation(fields: [userId], references: [id])
   
   @@index([userId])
+}
+
+model LearningTask {
+  id          String   @id @default(uuid())
+  planId      String
+  title       String
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  plan        StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  sessions    StudySession[]
+  
+  @@index([planId])
 }

@@ -76,15 +76,59 @@ export const endSession = async (req: AuthRequest, res: Response) => {
 
     // If linked to a study session, mark it as completed
     if (updatedSession.studySessionId) {
-      await prisma.studySession.update({
+      const studySession = await prisma.studySession.update({
         where: { id: updatedSession.studySessionId },
         data: { isCompleted: true }
       });
+
+      // Auto-complete corresponding task
+      if (studySession.taskId) {
+        await prisma.learningTask.update({
+          where: { id: studySession.taskId },
+          data: { isCompleted: true }
+        });
+      } else {
+        // Fallback: Flexible matching logic if no direct link (e.g., custom sessions)
+        const tasks = await prisma.learningTask.findMany({
+          where: { planId: studySession.planId, isCompleted: false }
+        });
+
+        const sessionTopicLower = studySession.topic.toLowerCase();
+        
+        for (const task of tasks) {
+          const taskTitleLower = task.title.toLowerCase();
+          
+          const getKeyPhrases = (text: string) => text.split(/[\s,:-]+/).filter(w => w.length > 3);
+          const taskWords = getKeyPhrases(taskTitleLower);
+          const sessionWords = getKeyPhrases(sessionTopicLower);
+          
+          let matched = false;
+          if (sessionTopicLower.includes(taskTitleLower) || taskTitleLower.includes(sessionTopicLower)) {
+              matched = true;
+          } else {
+              let matchCount = 0;
+              for (const word of sessionWords) {
+                  if (taskTitleLower.includes(word)) matchCount++;
+              }
+              if (sessionWords.length > 0 && matchCount >= Math.max(1, Math.floor(sessionWords.length / 2))) {
+                  matched = true;
+              }
+          }
+          
+          if (matched) {
+             await prisma.learningTask.update({
+               where: { id: task.id },
+               data: { isCompleted: true }
+             });
+             break; // ONLY tick 1 task as per user request
+          }
+        }
+      }
     }
 
-    // Award XP and Update Streak
-    await GamificationService.awardXP(userId, computedDuration, 'SESSION');
+    // Update streak before awarding XP because awardXP updates lastActivity to now
     await GamificationService.updateStreak(userId);
+    await GamificationService.awardXP(userId, computedDuration, 'SESSION');
 
     res.json(updatedSession);
   } catch (error: any) {

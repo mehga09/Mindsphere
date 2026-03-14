@@ -16,8 +16,9 @@ import reportRoutes from './routes/report.routes';
 import moderationRoutes from './routes/moderation.routes';
 import scheduleRoutes from './routes/schedule.routes';
 import analyticsRoutes from './routes/analytics.routes';
-
 import gamificationRoutes from './routes/gamification.routes';
+import quizRoutes from './routes/quiz.routes';
+import taskRoutes from './routes/task.routes';
 
 
 
@@ -60,9 +61,9 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/moderation', moderationRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/analytics', analyticsRoutes);
-
-
+app.use('/api/content', quizRoutes); // Mounted under /api/content/:id/quiz
 app.use('/gamification', gamificationRoutes);
+app.use('/api/tasks', taskRoutes);
 
 
 

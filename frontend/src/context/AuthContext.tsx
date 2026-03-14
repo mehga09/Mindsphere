@@ -60,6 +60,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     initAuth();
+
+    // Cross-tab sync: Update state if user changes in another tab
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'user') {
+        if (e.newValue) {
+          console.log('[AUTH] Syncing user from another tab');
+          setUser(JSON.parse(e.newValue));
+        } else {
+          console.log('[AUTH] Logged out from another tab');
+          setUser(null);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const login = async (data: LoginDto) => {

@@ -9,6 +9,7 @@ import SessionRunner from './pages/SessionRunner';
 import Analytics from './pages/Analytics';
 import AdminDashboard from './pages/AdminDashboard';
 import Schedule from './pages/Schedule';
+import TodoTasks from './pages/TodoTasks';
 import { initSync } from './utils/syncManager';
 import { registerServiceWorker } from './utils/notifications';
 
@@ -45,6 +46,9 @@ function App() {
           } />
           <Route path="/schedule" element={
             <PrivateRoute><Schedule /></PrivateRoute>
+          } />
+          <Route path="/plan/:planId/tasks" element={
+            <PrivateRoute><TodoTasks /></PrivateRoute>
           } />
           <Route path="/" element={
             <PrivateRoute>

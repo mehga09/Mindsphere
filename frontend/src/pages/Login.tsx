@@ -23,37 +23,50 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
-        <h2 className="mb-6 text-2xl font-bold text-center text-gray-900">Sign in to MindSphere</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
+      {/* Background blobs for login page specifically if global isn't enough, but relying on global body gradient is better. 
+          Let's add some local flair though. */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/20 blur-[100px] animate-blob" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/20 blur-[100px] animate-blob animation-delay-2000" />
+      </div>
+
+      <div className="w-full max-w-md rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 p-8 shadow-2xl animate-fade-in">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-300">MindSphere</h1>
+          <h2 className="mt-2 text-xl font-medium text-gray-200">Welcome Back</h2>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
             <input
               {...register('email')}
               type="email"
-              className="mt-1 block w-full rounded-md border border-gray-300 p-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="block w-full rounded-lg bg-white/5 border border-white/10 p-2.5 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500 focus:outline-none transition-all"
+              placeholder="you@example.com"
             />
-            {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+            {errors.email && <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
             <input
               {...register('password')}
               type="password"
-              className="mt-1 block w-full rounded-md border border-gray-300 p-2 focus:border-indigo-500 focus:ring-indigo-500"
+              className="block w-full rounded-lg bg-white/5 border border-white/10 p-2.5 text-white placeholder-gray-400 focus:border-purple-500 focus:ring-purple-500 focus:outline-none transition-all"
+              placeholder="••••••••"
             />
-            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
+            {errors.password && <p className="mt-1 text-sm text-red-400">{errors.password.message}</p>}
           </div>
           <button
             type="submit"
-            className="w-full rounded-md bg-indigo-600 py-2 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 py-3 text-white font-semibold shadow-lg hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transform transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Sign In
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Don't have an account? <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">Register</Link>
+        <p className="mt-6 text-center text-sm text-gray-400">
+          Don't have an account? <Link to="/register" className="font-medium text-purple-400 hover:text-purple-300 transition-colors">Create one now</Link>
         </p>
       </div>
     </div>

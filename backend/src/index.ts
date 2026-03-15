@@ -20,6 +20,7 @@ import gamificationRoutes from './routes/gamification.routes';
 import quizRoutes from './routes/quiz.routes';
 import taskRoutes from './routes/task.routes';
 import dailyPlanRoutes from './routes/dailyPlan.routes';
+import coursePlanRoutes from './routes/coursePlan.routes';
 
 
 
@@ -65,6 +66,7 @@ app.use('/api/content', quizRoutes); // Mounted under /api/content/:id/quiz
 app.use('/gamification', gamificationRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/daily-plan', dailyPlanRoutes);
+app.use('/api/course', coursePlanRoutes);
 
 
 

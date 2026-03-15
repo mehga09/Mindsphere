@@ -253,6 +253,146 @@ Now generate the schedule for "${topic}":
     }
 
     /**
+     * Generates an ordered list of 6-8 sub-topics for a course roadmap
+     */
+    async generateCourseRoadmap(topic: string): Promise<any[]> {
+        if (!this.apiKey) {
+            return [
+                { topicName: `Introduction to ${topic}`, description: `Basics and fundamentals of ${topic}`, estimatedDays: 1 },
+                { topicName: `${topic} Setup & Hello World`, description: `Setting up the workspace`, estimatedDays: 1 },
+                { topicName: `${topic} Core Concepts`, description: `Variables, syntax and rules`, estimatedDays: 2 },
+                { topicName: `Building static components with ${topic}`, description: `Applying core concepts to a project`, estimatedDays: 1 },
+                { topicName: `${topic} Functions and Logic`, description: `Control flow and data structures`, estimatedDays: 2 },
+                { topicName: `Advanced ${topic}`, description: `Optimization and patterns`, estimatedDays: 2 },
+                { topicName: `${topic} Final Project`, description: `Build a complete application`, estimatedDays: 3 },
+            ];
+        }
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: MODEL_NAME });
+
+            const prompt = `
+Act as an expert curriculum designer. Create a COMPREHENSIVE, deep learning roadmap for the course topic: "${topic}".
+Ensure it covers all phases from absolute beginner fundamentals up through advanced architectures, backend/databases (if applicable), and final deployment.
+You MUST provide a robust list of at least 10 to 15 distinct, granular sub-topics so the course has rich depth and does not end prematurely.
+Return ONLY a JSON array of sub-topics, ordered from beginner to advanced.
+Do not include any string formatting like \`\`\`json or \`\`\`.
+
+Each item in the array MUST follow this exact structure:
+{
+  "topicName": "short specific topic title",
+  "description": "1 sentence description of what will be learned",
+  "estimatedDays": number
+}
+
+Example output structure:
+[
+  { "topicName": "1. HTML Basics & Document Structure", "description": "Learn layout headings and paragraphs", "estimatedDays": 1 },
+  { "topicName": "2. CSS Fundamentals & Styling", "description": "Learn selectors box model and static styling", "estimatedDays": 2 },
+  { "topicName": "3. JavaScript Syntax & Data Types", "description": "Learn variables operators and types", "estimatedDays": 1 },
+  { "topicName": "4. JS Functions & Control Flow", "description": "Learn functions loops of logic", "estimatedDays": 2 },
+  { "topicName": "5. DOM Manipulation & Events", "description": "Learn attaching handlers for dynamic UI", "estimatedDays": 2 },
+  { "topicName": "6. Advanced JS & Async Await", "description": "Learn Promises and API integration", "estimatedDays": 1 },
+  { "topicName": "7. React Core Concepts & Hooks", "description": "Learn building components structure", "estimatedDays": 3 }
+]
+
+Now generate the COMPREHENSIVE roadmap for "${topic}" with 6 to 7 items:
+            `;
+
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text().trim();
+            console.log('\n=== GEMINI RESPONSE ===\n', responseText, '\n=======================\n');
+            const match = responseText.match(/\[[\s\S]*\]/);
+            if (!match) throw new Error('No JSON array found in response');
+            const cleanedText = match[0].replace(/,\s*([\]}])/g, '$1');
+            const roadmap = JSON.parse(cleanedText);
+            
+            if (Array.isArray(roadmap) && roadmap.length > 0) {
+                return roadmap;
+            }
+        } catch (error: any) {
+            try {
+                const fs = require('fs');
+                fs.appendFileSync('d:/Projects/mindsphere/generate_errors.txt', `\n[${new Date().toISOString()}] Error: ${error.stack || error}\n`);
+            } catch (e) {}
+            console.error('\n!!! ERROR GENERATING COURSE ROADMAP !!!\n', error);
+        }
+
+        const key = topic.toLowerCase().trim();
+        if (key === 'web development' || key === 'web dev') {
+            return [
+                { topicName: 'HTML Basics', description: 'HTML syntax and page structures', estimatedDays: 1 },
+                { topicName: 'CSS Fundamentals', description: 'Layouts and aesthetic designs', estimatedDays: 2 },
+                { topicName: 'JavaScript logic', description: 'Variables, loops and types setup', estimatedDays: 1 },
+                { topicName: 'DOM Manipulation', description: 'Attaching handlers for dynamic UI triggers', estimatedDays: 2 },
+                { topicName: 'Advanced JS & Async', description: 'Promises, APIs and fetch calls securely', estimatedDays: 2 },
+                { topicName: 'React Components', description: 'Modular framework building systems', estimatedDays: 2 },
+                { topicName: 'React State & Hooks', description: 'Managing reactive context and effect triggers', estimatedDays: 3 }
+            ];
+        }
+
+        return [
+            { topicName: `Introduction to ${topic}`, description: `Basics and fundamentals of ${topic}`, estimatedDays: 1 },
+            { topicName: `${topic} Setup & Configuration`, description: `Environment setup`, estimatedDays: 1 },
+            { topicName: `${topic} Core Syntax`, description: `Variables and logic`, estimatedDays: 2 },
+            { topicName: `${topic} Functions`, description: `Building modular elements`, estimatedDays: 1 },
+            { topicName: `${topic} Projects`, description: `Putting it all together`, estimatedDays: 3 },
+        ];
+    }
+
+    /**
+     * Generates a daily schedule combining primary and review topics
+     */
+    async generateAdaptiveDaySchedule(primaryTopic: string, reviewTopics: string[], dayNumber: number): Promise<any[]> {
+        if (!this.apiKey) {
+            return this.generateDailySchedule(primaryTopic); // fallback
+        }
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: MODEL_NAME });
+
+            const prompt = `
+Act as a world-class learning coach. Create a comprehensive, single-day study schedule representing Day ${dayNumber} of a larger course.
+The schedule MUST fit between 09:00 AM and 09:00 PM (12 hours total, 720 minutes).
+
+Focus areas for today:
+1. Primary Topic To Learn: "${primaryTopic}" (Allocate 70-80% of STUDY time)
+2. Review/Weak Topics (Carryover): [${reviewTopics.join(', ')}] (Allocate 20-30% of STUDY time to reinforce these)
+
+HARD REQUIREMENTS:
+1. Include EXACTLY 7 to 9 STUDY tasks. 
+2. At least 1-2 tasks MUST be specifically focused on Reviewing the weak topics listed above.
+3. STUDY task titles MUST be short, specific, and searchable on YouTube.
+4. STUDY task durations: 45 to 90 minutes each.
+5. Include 3 to 5 BREAK tasks (morning planning, lunch, coffee, review).
+6. The SUM of all task durations MUST equal exactly 720 minutes.
+7. Return ONLY a valid JSON array with no markdown or extra text.
+
+JSON structure:
+[
+  { "title": "string", "duration": number, "type": "STUDY" | "BREAK" }
+]
+
+Now generate the adaptive schedule:
+            `;
+
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text().trim();
+            const match = responseText.match(/\[[\s\S]*\]/);
+            if (!match) throw new Error('No JSON array found in response');
+            const schedule = JSON.parse(match[0]);
+            
+            if (Array.isArray(schedule) && schedule.length >= 5) {
+                return schedule;
+            }
+        } catch (error) {
+            console.error('Error generating adaptive schedule:', error);
+        }
+
+        return this.generateDailySchedule(primaryTopic); // rich fallback
+    }
+
+    /**
      * Generates a multiple-choice quiz based on content title and description
      */
     async generateQuiz(contentTitle: string, contentDescription: string, numQuestions: number = 5): Promise<any[]> {

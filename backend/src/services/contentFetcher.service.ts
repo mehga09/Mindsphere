@@ -380,8 +380,8 @@ export class ContentFetcherService {
             });
 
             if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
-                console.log(`No YouTube results for: "${query}"`);
-                return [];
+                console.log(`No YouTube results found for: "${query}", triggering fallbacks.`);
+                throw new Error(`No YouTube results for query: ${query}`);
             }
 
             const videoIds = searchResponse.data.items.map((item: any) => item.id.videoId).join(',');

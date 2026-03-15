@@ -73,6 +73,7 @@ model User {
   learningSchedules LearningSchedule[]
   studyPlans        StudyPlan[]
   dailyPlans        DailyPlan[]
+  coursePlans       CoursePlan[]
 }
 
 model PushSubscription {
@@ -388,12 +389,16 @@ model LearningTask {
 }
 
 model DailyPlan {
-  id        String   @id @default(uuid())
-  userId    String
-  topic     String
-  date      DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  userId       String
+  topic        String
+  date         DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Link to course planner (optional - for backward compatibility)
+  coursePlanId String?
+  coursePlan   CoursePlan? @relation(fields: [coursePlanId], references: [id])
 
   user  User        @relation(fields: [userId], references: [id])
   tasks DailyTask[]
@@ -427,4 +432,64 @@ model DailyTask {
 
   dailyPlan DailyPlan @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
   learningSessions LearningSession[]
+}
+
+// ============================================================
+// ADAPTIVE COURSE PLANNER
+// ============================================================
+
+enum CourseStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model CoursePlan {
+  id        String       @id @default(uuid())
+  userId    String
+  topic     String       // e.g. "Web Development"
+  dayNumber Int          @default(1)
+  status    CourseStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id])
+  topicNodes  CourseTopicNode[]
+  performance DailyPerformance[]
+  plans       DailyPlan[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model CourseTopicNode {
+  id         String  @id @default(uuid())
+  courseId   String
+  topicName  String  // e.g. "HTML Basics", "CSS Flexbox"
+  orderIndex Int     // 0, 1, 2...
+  isMastered Boolean @default(false)
+  isUnlocked Boolean @default(false)
+
+  course       CoursePlan       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  performances DailyPerformance[]
+
+  @@index([courseId, orderIndex])
+}
+
+model DailyPerformance {
+  id             String   @id @default(uuid())
+  courseId       String
+  topicNodeId    String
+  dayNumber      Int
+  completionRate Float    @default(0)   // 0.0 - 1.0
+  avgQuizScore   Float    @default(0)   // 0.0 - 1.0
+  tasksTotal     Int      @default(0)
+  tasksCompleted Int      @default(0)
+  recordedAt     DateTime @default(now())
+
+  course    CoursePlan      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topicNode CourseTopicNode @relation(fields: [topicNodeId], references: [id])
+
+  @@unique([courseId, dayNumber])
+  @@index([courseId])
 }

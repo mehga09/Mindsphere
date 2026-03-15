@@ -154,6 +154,105 @@ export class LlmService {
     }
 
     /**
+     * Generates a granular daily schedule for a given topic
+     */
+    async generateDailySchedule(topic: string): Promise<any[]> {
+        if (!this.apiKey) {
+            return [
+                { title: `Morning Planning & Strategy for ${topic}`, duration: 20, type: 'BREAK' },
+                { title: `${topic} Fundamentals & Core Concepts`, duration: 60, type: 'STUDY' },
+                { title: `Short Break`, duration: 15, type: 'BREAK' },
+                { title: `${topic} Setup & Environment Configuration`, duration: 60, type: 'STUDY' },
+                { title: `${topic} Variables, Data Types & Syntax`, duration: 60, type: 'STUDY' },
+                { title: `Lunch Break`, duration: 45, type: 'BREAK' },
+                { title: `${topic} Control Flow & Functions`, duration: 75, type: 'STUDY' },
+                { title: `Short Break`, duration: 15, type: 'BREAK' },
+                { title: `${topic} Object-Oriented Programming`, duration: 75, type: 'STUDY' },
+                { title: `${topic} Error Handling & Debugging`, duration: 60, type: 'STUDY' },
+                { title: `Short Break`, duration: 15, type: 'BREAK' },
+                { title: `${topic} Advanced Patterns & Best Practices`, duration: 75, type: 'STUDY' },
+                { title: `Build Your First ${topic} Project`, duration: 75, type: 'STUDY' },
+                { title: `Final Review & Mission Debrief`, duration: 30, type: 'BREAK' },
+            ];
+        }
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: MODEL_NAME });
+
+            const prompt = `
+Act as a world-class learning coach. Create a comprehensive, single-day study schedule for the topic: "${topic}".
+The schedule MUST fit between 09:00 AM and 09:00 PM (12 hours total, 720 minutes).
+
+HARD REQUIREMENTS:
+1. Include EXACTLY 7 to 9 STUDY tasks. Not fewer. Each must be a DISTINCT sub-topic of "${topic}".
+2. STUDY task titles MUST be short, specific, and searchable on YouTube (e.g., "Python List Comprehensions Tutorial", "React useEffect Hook Explained"). Avoid vague titles.
+3. STUDY task durations: 45 to 90 minutes each.
+4. Include 3 to 5 BREAK tasks (morning planning, short coffee breaks, lunch, final review). Each 15 to 60 minutes.
+5. The SUM of all durations MUST equal exactly 720 minutes.
+6. Order tasks logically: beginner topics first, advanced topics later.
+7. Return ONLY a valid JSON array with no markdown or extra text.
+
+JSON structure:
+[
+  { "title": "string", "duration": number, "type": "STUDY" | "BREAK" }
+]
+
+Example for topic "Python":
+[
+  { "title": "Morning Planning & Python Roadmap", "duration": 20, "type": "BREAK" },
+  { "title": "Python Basics: Variables and Data Types", "duration": 60, "type": "STUDY" },
+  { "title": "Python Control Flow: If Else and Loops", "duration": 60, "type": "STUDY" },
+  { "title": "Short Break", "duration": 15, "type": "BREAK" },
+  { "title": "Python Functions and Scope", "duration": 60, "type": "STUDY" },
+  { "title": "Lunch Break", "duration": 45, "type": "BREAK" },
+  { "title": "Python Object Oriented Programming", "duration": 75, "type": "STUDY" },
+  { "title": "Python File Handling and Exceptions", "duration": 60, "type": "STUDY" },
+  { "title": "Short Break", "duration": 15, "type": "BREAK" },
+  { "title": "Python List Comprehensions and Generators", "duration": 60, "type": "STUDY" },
+  { "title": "Python Modules and Packages", "duration": 60, "type": "STUDY" },
+  { "title": "Short Break", "duration": 15, "type": "BREAK" },
+  { "title": "Build a Python Project from Scratch", "duration": 75, "type": "STUDY" },
+  { "title": "Final Review and Mission Debrief", "duration": 20, "type": "BREAK" }
+]
+Now generate the schedule for "${topic}":
+            `;
+
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text().trim();
+            const cleanJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const schedule = JSON.parse(cleanJson);
+            
+            if (Array.isArray(schedule) && schedule.length >= 7) {
+                return schedule;
+            }
+
+            // If parsed but too few items, still return what we have
+            if (Array.isArray(schedule) && schedule.length > 0) {
+                return schedule;
+            }
+        } catch (error) {
+            console.error('Error generating daily schedule:', error);
+        }
+
+        // Rich fallback with 9 study tasks
+        return [
+            { title: `Morning Planning & Strategy for ${topic}`, duration: 20, type: 'BREAK' },
+            { title: `${topic} Fundamentals and Core Concepts`, duration: 60, type: 'STUDY' },
+            { title: `${topic} Setup and Environment Configuration`, duration: 60, type: 'STUDY' },
+            { title: `Short Break`, duration: 15, type: 'BREAK' },
+            { title: `${topic} Variables, Data Types and Syntax`, duration: 60, type: 'STUDY' },
+            { title: `${topic} Control Flow and Functions`, duration: 75, type: 'STUDY' },
+            { title: `Lunch Break`, duration: 45, type: 'BREAK' },
+            { title: `${topic} Object Oriented Programming`, duration: 75, type: 'STUDY' },
+            { title: `${topic} Error Handling and Debugging`, duration: 60, type: 'STUDY' },
+            { title: `Short Break`, duration: 15, type: 'BREAK' },
+            { title: `${topic} Advanced Patterns and Best Practices`, duration: 75, type: 'STUDY' },
+            { title: `Build a Complete ${topic} Project`, duration: 75, type: 'STUDY' },
+            { title: `Final Review and Mission Debrief`, duration: 25, type: 'BREAK' },
+        ];
+    }
+
+    /**
      * Generates a multiple-choice quiz based on content title and description
      */
     async generateQuiz(contentTitle: string, contentDescription: string, numQuestions: number = 5): Promise<any[]> {

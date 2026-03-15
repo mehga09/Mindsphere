@@ -17,8 +17,10 @@ export default function SessionRunner() {
   const { contentId } = useParams();
   const [searchParams] = useSearchParams();
   const studySessionId = searchParams.get('studySessionId');
+  const dailyTaskId = searchParams.get('dailyTaskId');
   const navigate = useNavigate();
-  const backPath = studySessionId ? '/schedule' : '/';
+  const source = searchParams.get('source');
+  const backPath = source === 'daily-planner' ? '/daily-planner' : (studySessionId ? '/schedule' : '/');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [content, setContent] = useState<any>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -38,7 +40,8 @@ export default function SessionRunner() {
       try {
         const res = await client.post('/api/sessions/start', {
           contentId,
-          ...(studySessionId ? { studySessionId } : {})
+          ...(studySessionId ? { studySessionId } : {}),
+          ...(dailyTaskId ? { dailyTaskId } : {})
         });
         setSessionId(res.data.id);
         setContent(res.data.content);

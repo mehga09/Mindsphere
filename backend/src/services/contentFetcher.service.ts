@@ -142,30 +142,199 @@ export class ContentFetcherService {
     }
 
     /**
-     * Fetches a highly specific video based on a task title, filtering by duration, age, and ranking by views.
+     * Fetches a large batch of videos for a topic in ONE YouTube API call.
+     * Returns up to 50 results so the caller can pick the best match per task.
+     * Saves all fetched videos to the DB tagged with the topic.
+     */
+    async fetchBatchVideosForTopic(topic: string): Promise<Content[]> {
+        console.log(`Fetching batch videos for topic: "${topic}"`);
+
+        // Check DB first — if we already have enough tagged videos, skip the API call
+        const existing = await prisma.content.findMany({
+            where: {
+                source: 'YouTube',
+                tags: { some: { tag: { name: { contains: topic, mode: 'insensitive' } } } }
+            },
+            take: 50
+        });
+
+        if (existing.length >= 10) {
+            console.log(`DB has ${existing.length} videos for topic "${topic}" — skipping API call.`);
+            return existing;
+        }
+
+        if (!YOUTUBE_API_KEY) {
+            console.warn('No YOUTUBE_API_KEY — returning existing DB videos for topic.');
+            return existing;
+        }
+
+        try {
+            const publishedAfter = new Date();
+            publishedAfter.setFullYear(publishedAfter.getFullYear() - 10);
+
+            // Single search call — 100 quota units total (vs 800+ for per-task searches)
+            const searchResponse = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+                params: {
+                    part: 'snippet',
+                    q: `${topic} tutorial`,
+                    type: 'video',
+                    key: YOUTUBE_API_KEY,
+                    maxResults: 50,
+                    publishedAfter: publishedAfter.toISOString()
+                }
+            });
+
+            if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
+                console.log(`No YouTube batch results for topic: "${topic}"`);
+                return existing;
+            }
+
+            const videoIds = searchResponse.data.items.map((item: any) => item.id.videoId).join(',');
+
+            // Fetch full details (1 quota unit)
+            const detailsResponse = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+                params: { part: 'contentDetails,snippet,statistics', id: videoIds, key: YOUTUBE_API_KEY }
+            });
+
+            const topicTag = await prisma.tag.upsert({ where: { name: topic }, update: {}, create: { name: topic } });
+            const results: Content[] = [];
+
+            for (const item of detailsResponse.data.items) {
+                const duration = parseISO8601Duration(item.contentDetails.duration);
+                // Accept videos between 5 min (300s) and 4 hours (14400s)
+                if (duration < 300 || duration > 14400) continue;
+
+                const viewCount = parseInt(item.statistics.viewCount || '0', 10);
+                const externalId = item.id;
+
+                let record = await prisma.content.findUnique({ where: { externalId } });
+                if (!record) {
+                    record = await prisma.content.create({
+                        data: {
+                            title: item.snippet.title,
+                            description: item.snippet.description,
+                            url: `https://www.youtube.com/watch?v=${externalId}`,
+                            source: 'YouTube',
+                            type: ContentType.VIDEO,
+                            duration,
+                            thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+                            externalId,
+                            tags: {
+                                create: {
+                                    tag: { connectOrCreate: { where: { name: topic }, create: { name: topic } } }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    // Ensure it's tagged with topic
+                    await prisma.contentTag.upsert({
+                        where: { contentId_tagId: { contentId: record.id, tagId: topicTag.id } },
+                        update: {},
+                        create: { contentId: record.id, tagId: topicTag.id }
+                    }).catch(() => {});
+                }
+                (record as any)._viewCount = viewCount; // attach for sorting
+                results.push(record);
+            }
+
+            // Sort by viewCount descending
+            results.sort((a: any, b: any) => (b._viewCount || 0) - (a._viewCount || 0));
+            console.log(`Batch fetched ${results.length} videos for topic "${topic}".`);
+            return results;
+
+        } catch (error: any) {
+            if (axios.isAxiosError(error)) {
+                console.error(`Batch YouTube API error for "${topic}":`, error.response?.status, error.response?.data?.error?.message);
+            } else {
+                console.error('fetchBatchVideosForTopic error:', error);
+            }
+            // If we have topic-specific cache, use it
+            if (existing.length > 0) return existing;
+            // Last resort: return ANY cached YouTube videos so keyword matching has something to work with
+            console.warn(`No topic-cached videos for "${topic}" — using general DB pool as fallback.`);
+            return prisma.content.findMany({ where: { source: 'YouTube' }, orderBy: { createdAt: 'desc' }, take: 50 });
+        }
+    }
+
+    /**
+     * Given a batch of videos and a task title, picks the best matching video
+     * by scoring keyword overlap between the task title and video title.
+     */
+    pickBestVideoForTask(taskTitle: string, videoPool: Content[], usedIds: Set<string>): Content | null {
+        const taskWords = new Set(
+            taskTitle.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+        );
+
+        let bestScore = -1;
+        let bestVideo: Content | null = null;
+
+        for (const video of videoPool) {
+            if (usedIds.has(video.id)) continue; // don't reuse the same video
+            const titleWords = video.title.toLowerCase().split(/\s+/);
+            const score = titleWords.filter(w => taskWords.has(w)).length;
+            if (score > bestScore) {
+                bestScore = score;
+                bestVideo = video;
+            }
+        }
+
+        // If no keyword match, pick first unused video
+        if (!bestVideo) {
+            bestVideo = videoPool.find(v => !usedIds.has(v.id)) || null;
+        }
+
+        return bestVideo;
+    }
+
+    /**
+     * Fetches a specific video for a task title.
+     * Fallback chain:
+     *   L1: Task-title tag in DB (exact re-use, no API call)
+     *   L2: YouTube API (fresh, quota-consuming)
+     *   L3: Topic-tagged videos in DB (quota-exhausted fallback)
      */
     async fetchSpecificVideoForTask(taskTitle: string, topic: string): Promise<Content[]> {
-        console.log(`Fetching specific video for task: ${taskTitle} (Topic: ${topic})`);
+        console.log(`Fetching specific video for task: "${taskTitle}" (Topic: ${topic})`);
 
-        // Check local DB first for an exact match
-        let localContents = await prisma.content.findMany({
+        // LEVEL 1: Exact cache hit — video previously tagged with this task title
+        const cached = await prisma.content.findMany({
             where: {
-                title: { contains: taskTitle, mode: 'insensitive' },
-                source: 'YouTube'
+                source: 'YouTube',
+                OR: [
+                    { tags: { some: { tag: { name: taskTitle } } } },
+                ]
             },
             take: 5
         });
 
-        if (localContents.length >= 3) {
-           return localContents;
+        if (cached.length >= 1) {
+            console.log(`L1 cache hit for "${taskTitle}" — ${cached.length} video(s).`);
+            return cached;
         }
 
+        // Helper: Level 3 — topic-level DB fallback
+        const topicFallback = async (): Promise<Content[]> => {
+            const hits = await prisma.content.findMany({
+                where: {
+                    source: 'YouTube',
+                    tags: { some: { tag: { name: { contains: topic, mode: 'insensitive' } } } }
+                },
+                take: 5
+            });
+            if (hits.length > 0) console.log(`L3 topic fallback for "${taskTitle}" — ${hits.length} video(s) from topic "${topic}".`);
+            return hits;
+        };
+
+        // LEVEL 2: Fetch from YouTube API
         if (!YOUTUBE_API_KEY) {
-            console.warn('YOUTUBE_API_KEY not set. Using mock task data.');
+            console.warn('YOUTUBE_API_KEY not set. Trying topic DB fallback then mock.');
+            const fallback = await topicFallback();
+            if (fallback.length > 0) return fallback;
             const mocks = this.getMockYouTubeData(`${taskTitle} ${topic}`, 5);
             const results = [];
             for (const mock of mocks) {
-                const createdMock = await prisma.content.create({
+                const created = await prisma.content.create({
                     data: {
                         title: mock.title,
                         description: mock.description,
@@ -182,51 +351,48 @@ export class ContentFetcherService {
                         }
                     }
                 });
-                results.push(createdMock);
+                // Also tag with task title for future cache hits
+                const taskTag = await prisma.tag.upsert({ where: { name: taskTitle }, update: {}, create: { name: taskTitle } });
+                await prisma.contentTag.upsert({
+                    where: { contentId_tagId: { contentId: created.id, tagId: taskTag.id } },
+                    update: {},
+                    create: { contentId: created.id, tagId: taskTag.id }
+                });
+                results.push(created);
             }
             return results;
         }
 
         try {
-            // Published within the last 10 years
             const publishedAfter = new Date();
             publishedAfter.setFullYear(publishedAfter.getFullYear() - 10);
+            const query = `${taskTitle} ${topic} tutorial`;
 
-            const query = `${taskTitle} tutorial`;
-            
-            // Search YouTube
             const searchResponse = await axios.get('https://www.googleapis.com/youtube/v3/search', {
                 params: {
                     part: 'snippet',
                     q: query,
                     type: 'video',
                     key: YOUTUBE_API_KEY,
-                    maxResults: 20, // Fetch more to allow for filtering
+                    maxResults: 20,
                     publishedAfter: publishedAfter.toISOString()
                 }
             });
 
             if (!searchResponse.data.items || searchResponse.data.items.length === 0) {
-                console.log(`No YouTube search results for query: ${query}`);
+                console.log(`No YouTube results for: "${query}"`);
                 return [];
             }
 
             const videoIds = searchResponse.data.items.map((item: any) => item.id.videoId).join(',');
 
-            // Get video details (contentDetails for duration, statistics for viewCount)
             const detailsResponse = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
-                params: {
-                    part: 'contentDetails,snippet,statistics',
-                    id: videoIds,
-                    key: YOUTUBE_API_KEY
-                }
+                params: { part: 'contentDetails,snippet,statistics', id: videoIds, key: YOUTUBE_API_KEY }
             });
 
-            // Filter and Map
             let validVideos = detailsResponse.data.items.map((item: any) => {
                 const duration = parseISO8601Duration(item.contentDetails.duration);
                 const viewCount = parseInt(item.statistics.viewCount || '0', 10);
-                
                 return {
                     externalId: item.id,
                     title: item.snippet.title,
@@ -237,36 +403,28 @@ export class ContentFetcherService {
                     viewCount
                 };
             }).filter((v: any) => {
-                // Filter duration between 1m (60s) and 120m (7200s)
-                const isMatch = v.duration >= 60 && v.duration <= 7200;
-                if (!isMatch) {
-                    console.log(`Skipping video ${v.title} due to duration: ${Math.round(v.duration/60)} mins (${v.duration}s)`);
-                }
-                return isMatch;
+                const ok = v.duration >= 600 && v.duration <= 10800;
+                if (!ok) console.log(`Skipping "${v.title}" — ${Math.round(v.duration / 60)}m`);
+                return ok;
             });
 
             if (validVideos.length === 0) {
-                 console.log(`No videos matched duration constraints (10-120m) for task: ${taskTitle}. Found ${detailsResponse.data.items.length} total.`);
-                 return localContents;
+                console.log(`No duration-valid videos for task: "${taskTitle}"`);
+                return [];
             }
 
-            // Rank by highest viewCount
             validVideos.sort((a: any, b: any) => b.viewCount - a.viewCount);
-            console.log(`Selected top ${Math.min(5, validVideos.length)} videos for ${taskTitle}`);
 
-            const bestVideos = validVideos.slice(0, 5);
+            // Ensure task-title tag exists once (reused for all videos in this task)
+            const taskTag = await prisma.tag.upsert({ where: { name: taskTitle }, update: {}, create: { name: taskTitle } });
+
             const results = [];
-            
-            for (const video of bestVideos) {
-                // Save to DB
-                let existing = await prisma.content.findUnique({
-                    where: { externalId: video.externalId }
-                });
+            for (const video of validVideos.slice(0, 5)) {
+                let record = await prisma.content.findUnique({ where: { externalId: video.externalId } });
 
-                if (existing) {
-                    results.push(existing);
-                } else {
-                    const created = await prisma.content.create({
+                if (!record) {
+                    // Save new video — tag with topic (original working pattern)
+                    record = await prisma.content.create({
                         data: {
                             title: video.title,
                             description: video.description,
@@ -283,19 +441,63 @@ export class ContentFetcherService {
                             }
                         }
                     });
-                    results.push(created);
                 }
+
+                // Tag with task title so future lookups (Level 1) find this exact video
+                await prisma.contentTag.upsert({
+                    where: { contentId_tagId: { contentId: record.id, tagId: taskTag.id } },
+                    update: {},
+                    create: { contentId: record.id, tagId: taskTag.id }
+                });
+
+                results.push(record);
             }
 
             return results;
 
         } catch (error: any) {
             if (axios.isAxiosError(error)) {
-                console.error('YouTube API Error in fetchSpecificVideoForTask:', error.response?.status, error.response?.data);
+                console.error(`YouTube API error for "${taskTitle}":`, error.response?.status, error.response?.data?.error?.message || error.response?.data);
             } else {
-                console.error('YouTube API Error in fetchSpecificVideoForTask:', error);
+                console.error('fetchSpecificVideoForTask error:', error);
             }
-            return localContents;
+            
+            // L3: YouTube failed — serve cached topic videos
+            const fallback = await topicFallback();
+            if (fallback.length > 0) return fallback;
+
+            // L4: Ultimate Fallback — generate Mock Data linked to this task
+            console.log(`L4 mock fallback for "${taskTitle}"`);
+            const mocks = this.getMockYouTubeData(`${taskTitle} ${topic}`, 2);
+            const results = [];
+            for (const mock of mocks) {
+                const created = await prisma.content.create({
+                    data: {
+                        title: mock.title,
+                        description: mock.description,
+                        url: mock.url,
+                        source: 'YouTube',
+                        type: ContentType.VIDEO,
+                        duration: mock.duration,
+                        thumbnail: mock.thumbnail,
+                        externalId: mock.externalId,
+                        tags: {
+                            create: {
+                                tag: { connectOrCreate: { where: { name: topic }, create: { name: topic } } }
+                            }
+                        }
+                    }
+                });
+                const taskTag = await prisma.tag.upsert({ where: { name: taskTitle }, update: {}, create: { name: taskTitle } });
+                await prisma.contentTag.upsert({
+                    where: { contentId_tagId: { contentId: created.id, tagId: taskTag.id } },
+                    update: {},
+                    create: { contentId: created.id, tagId: taskTag.id }
+                });
+                results.push(created);
+            }
+            return results;
         }
     }
 }
+

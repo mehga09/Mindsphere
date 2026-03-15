@@ -4,6 +4,18 @@ import { RecommendationCard } from '../components/RecommendationCard';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { subscribeToPush } from '../utils/notifications';
+import { 
+  PlusCircle, 
+  Search, 
+  TrendingUp, 
+  Clock, 
+  CheckCircle2, 
+  Play, 
+  ArrowRight, 
+  Layout, 
+  Settings,
+  Layers
+} from 'lucide-react';
 
 interface Content {
   id: string;
@@ -86,6 +98,13 @@ export default function Home() {
             <button onClick={handleEnableNotifications} className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1 rounded-full hover:bg-purple-500/30 transition-colors">
               Enable Notifications
             </button>
+            <Link 
+              to="/daily-planner" 
+              className="group flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded-full text-sm font-bold transition-all shadow-lg shadow-purple-600/20 active:scale-95"
+            >
+              <Layers size={14} className="group-hover:rotate-12 transition-transform" />
+              Plan My Whole Day
+            </Link>
             <Link to="/survey" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Preferences</Link>
             <Link to="/schedule" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">My Schedule</Link>
             <Link to="/analytics" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Insights</Link>
@@ -102,7 +121,9 @@ export default function Home() {
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
         <section>
           <div className="flex justify-between items-baseline mb-6">
-            <h2 className="text-2xl font-bold text-white">Focus of the Day</h2>
+            <div>
+              <h2 className="text-2xl font-bold text-white">Focus of the Day</h2>
+            </div>
             <span className="text-sm text-purple-200 bg-purple-900/40 border border-purple-500/30 px-3 py-1 rounded-full">Anti-Doomscroll Mode</span>
           </div>
 

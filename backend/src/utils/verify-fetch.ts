@@ -1,27 +1,35 @@
+import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
-// Load .env from backend root
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-import { ContentFetcherService } from '../services/contentFetcher.service';
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
-async function verifyFetching() {
-    const fetcher = new ContentFetcherService();
-    const testTask = "Next.js Introduction";
-    const testTopic = "Web Development";
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
-    console.log(`--- Testing Fetching for: ${testTask} ---`);
+async function testYouTube() {
+    console.log('Testing YouTube API Key:', YOUTUBE_API_KEY ? 'Present' : 'MISSING');
+    if (!YOUTUBE_API_KEY) return;
+
     try {
-        const results = await fetcher.fetchSpecificVideoForTask(testTask, testTopic);
-        console.log(`Results Found: ${results.length}`);
-        results.forEach((r: any, i: number) => {
-            console.log(`[${i+1}] Title: ${r.title}`);
-            console.log(`    URL: ${r.url}`);
-            console.log(`    Duration: ${r.duration}s`);
+        const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+            params: {
+                part: 'snippet',
+                q: 'javascript tutorial',
+                type: 'video',
+                key: YOUTUBE_API_KEY,
+                maxResults: 1
+            }
         });
-    } catch (error) {
-        console.error("Verification failed:", error);
+        console.log('✅ API SUCCESS!');
+        console.log('Results Count:', response.data.pageInfo.totalResults);
+    } catch (error: any) {
+        if (error.response) {
+            console.error('❌ API ERROR:', error.response.status);
+            console.error(JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.error('❌ Network Error:', error.message);
+        }
     }
 }
 
-verifyFetching();
+testYouTube();

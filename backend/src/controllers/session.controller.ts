@@ -7,6 +7,7 @@ import { GamificationService } from '../services/gamification.service';
 const StartSessionSchema = z.object({
   contentId: z.string(),
   studySessionId: z.string().optional(),
+  dailyTaskId: z.string().optional(),
 });
 
 const EndSessionSchema = z.object({
@@ -29,13 +30,14 @@ export const startSession = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { contentId, studySessionId } = StartSessionSchema.parse(req.body);
+    const { contentId, studySessionId, dailyTaskId } = StartSessionSchema.parse(req.body);
 
     const session = await prisma.learningSession.create({
       data: {
         userId,
         contentId,
         studySessionId,
+        dailyTaskId,
         startTime: new Date(),
       },
       include: {
@@ -124,6 +126,14 @@ export const endSession = async (req: AuthRequest, res: Response) => {
           }
         }
       }
+    }
+
+    // If linked to a Daily Planner Task, mark it as completed
+    if (updatedSession.dailyTaskId) {
+      await prisma.dailyTask.update({
+        where: { id: updatedSession.dailyTaskId },
+        data: { isCompleted: true }
+      }).catch(err => console.error('Failed to auto-complete daily task', err));
     }
 
     // Update streak before awarding XP because awardXP updates lastActivity to now

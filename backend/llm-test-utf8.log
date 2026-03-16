@@ -1,0 +1,163 @@
+﻿Starting test...
+node.exe : Error 
+generating tasks from 
+LLM: GoogleGenerativeAI
+FetchError: 
+[GoogleGenerativeAI 
+Error]: Error fetching 
+from https://generative
+language.googleapis.com
+/v1beta/models/gemini-2
+.0-flash:generateConten
+t: [429 Too Many 
+Requests] You exceeded 
+your current quota, 
+please check your plan 
+and billing details. 
+For more information 
+on this error, head 
+to: https://ai.google.d
+ev/gemini-api/docs/rate
+-limits. To monitor 
+your current usage, 
+head to: https://ai.dev
+/rate-limit. 
+At line:1 char:1
++ & "C:\Program 
+Files/node.exe" "C:\Use
+rs\Merin\AppData\Roamin
+g\npm/nod ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Error generat   
+ in...ev/rate-limit    
+. :String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+* Quota exceeded for 
+metric: generativelangu
+age.googleapis.com/gene
+rate_content_free_tier_
+input_token_count, 
+limit: 0, model: 
+gemini-2.0-flash
+* Quota exceeded for 
+metric: generativelangu
+age.googleapis.com/gene
+rate_content_free_tier_
+requests, limit: 0, 
+model: gemini-2.0-flash
+* Quota exceeded for 
+metric: generativelangu
+age.googleapis.com/gene
+rate_content_free_tier_
+requests, limit: 0, 
+model: gemini-2.0-flash
+Please retry in 
+5.628331016s. [{"@type"
+:"type.googleapis.com/g
+oogle.rpc.Help","links"
+:[{"description":"Learn
+ more about Gemini API 
+quotas","url":"https://
+ai.google.dev/gemini-ap
+i/docs/rate-limits"}]},
+{"@type":"type.googleap
+is.com/google.rpc.Quota
+Failure","violations":[
+{"quotaMetric":"generat
+ivelanguage.googleapis.
+com/generate_content_fr
+ee_tier_input_token_cou
+nt","quotaId":"Generate
+ContentInputTokensPerMo
+delPerMinute-FreeTier",
+"quotaDimensions":{"mod
+el":"gemini-2.0-flash",
+"location":"global"}},{
+"quotaMetric":"generati
+velanguage.googleapis.c
+om/generate_content_fre
+e_tier_requests","quota
+Id":"GenerateRequestsPe
+rMinutePerProjectPerMod
+el-FreeTier","quotaDime
+nsions":{"location":"gl
+obal","model":"gemini-2
+.0-flash"}},{"quotaMetr
+ic":"generativelanguage
+.googleapis.com/generat
+e_content_free_tier_req
+uests","quotaId":"Gener
+ateRequestsPerDayPerPro
+jectPerModel-FreeTier",
+"quotaDimensions":{"mod
+el":"gemini-2.0-flash",
+"location":"global"}}]}
+,{"@type":"type.googlea
+pis.com/google.rpc.Retr
+yInfo","retryDelay":"5s
+"}]
+    at 
+handleResponseNotOk (D:
+\Projects\mindsphere\mi
+ndsphereV2\node_modules
+\@google\generative-ai\
+dist\index.js:434:11)
+    at processTicksAndR
+ejections (node:interna
+l/process/task_queues:1
+05:5)
+    at async 
+makeRequest (D:\Project
+s\mindsphere\mindsphere
+V2\node_modules\@google
+\generative-ai\dist\ind
+ex.js:403:9)
+    at async 
+generateContent (D:\Pro
+jects\mindsphere\mindsp
+hereV2\node_modules\@go
+ogle\generative-ai\dist
+\index.js:867:22)
+    at async LlmService
+.generateLearningTasks 
+(D:\Projects\mindsphere
+\mindsphereV2\backend\s
+rc\services\llm.service
+.ts:108:28)
+    at async test (D:\P
+rojects\mindsphere\mind
+sphereV2\backend\test-l
+lm.ts:9:23) {
+  status: 429,
+  statusText: 'Too 
+Many Requests',
+  errorDetails: [
+    { '@type': 'type.go
+ogleapis.com/google.rpc
+.Help', links: [Array] 
+},
+    {
+      '@type': 'type.go
+ogleapis.com/google.rpc
+.QuotaFailure',
+      violations: 
+[Array]
+    },
+    {
+      '@type': 'type.go
+ogleapis.com/google.rpc
+.RetryInfo',
+      retryDelay: '5s'
+    }
+  ]
+}
+Tasks: [ 'Introduction to Solidity', 'Practice Solidity' ]

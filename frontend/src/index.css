@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+:root {
+  --theme-primary: #7c3aed;
+  --theme-secondary: #4f46e5;
+  --theme-background: #0f172a;
+  --theme-text: #f8fafc;
+  --theme-accent: #c026d3;
+}
+
+@layer base {
+  body {
+    @apply font-sans bg-slate-900 text-slate-100 min-h-screen antialiased selection:bg-purple-500 selection:text-white;
+    transition: background-color 0.5s ease, color 0.5s ease;
+  }
+  
+  body.app-themed {
+    background: var(--theme-background) !important;
+    color: var(--theme-text) !important;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 shadow-xl;
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600;
+  }
+}
+
+@theme {
+    --animate-blob: blob 7s infinite;
+    --animate-float: float 6s ease-in-out infinite;
+
+    @keyframes blob {
+        0% { transform: translate(0px, 0px) scale(1); }
+        33% { transform: translate(30px, -50px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+        100% { transform: translate(0px, 0px) scale(1); }
+    }
+
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+        100% { transform: translateY(0px); }
+    }
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+.animation-delay-4000 {
+    animation-delay: 4s;
+}

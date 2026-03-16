@@ -1,0 +1,533 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  LEARNER
+  ADMIN
+  ANALYST
+}
+
+enum ContentType {
+  VIDEO
+  ARTICLE
+  MICRO_MODULE
+}
+
+enum InteractionType {
+  VIEW
+  COMPLETE
+  LIKE
+  SKIP
+  SHARE
+}
+
+enum FlagReason {
+  INAPPROPRIATE
+  MISLEADING
+  SPAM
+  OTHER
+}
+
+enum FlagStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String  @id @default(uuid())
+  email     String  @unique
+  password  String?
+  name      String?
+  role      Role    @default(LEARNER)
+  googleId  String? @unique
+  avatarUrl String?
+
+  level         Int      @default(1)
+  currentXP     Int      @default(0)
+  currentStreak Int      @default(0)
+  lastActivity  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  preferences       Preference?
+  refreshTokens     RefreshToken[]
+  sessions          LearningSession[]
+  interactions      InteractionEvent[]
+  xpTransactions    XPTransaction[]
+  userChallenges    UserChallenge[]
+  userBadges        UserBadge[]
+  reminders         ReminderSchedule[]
+  notificationLogs  NotificationLog[]
+  flaggedCases      FlagCase[]         @relation("Reporter")
+  moderatedCases    FlagCase[]         @relation("Moderator") // If admin
+  auditLogs         AuditLog[]
+  pushSubscriptions PushSubscription[]
+  learningSchedules LearningSchedule[]
+  studyPlans        StudyPlan[]
+  dailyPlans        DailyPlan[]
+  coursePlans       CoursePlan[]
+
+  // Achievement System
+  activeThemeId     String?
+  userThemes        UserTheme[]
+}
+
+model PushSubscription {
+  id       String @id @default(uuid())
+  userId   String
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Preference {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  topics          String[]
+  quietHoursStart String? // HH:MM format
+  quietHoursEnd   String? // HH:MM format
+  dailyGoalMins   Int      @default(15)
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Content {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  url         String
+  source      String?
+  type        ContentType
+  duration    Int // in seconds
+  thumbnail   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags      ContentTag[]
+  sessions  LearningSession[]
+  flagCases FlagCase[]
+
+  // New fields for Advanced Content
+  difficulty   String? // Beginner, Intermediate, Advanced
+  externalId   String? @unique // YouTube ID, etc.
+  sourceParams Json? // Store extra metadata from API
+
+  studySessions StudySession[]
+  quiz          Quiz? // One-to-one relation for simplicity, or one-to-many if multiple quizzes per content
+  DailyTask     DailyTask[]
+
+  @@index([createdAt])
+  @@index([type])
+}
+
+model Quiz {
+  id        String   @id @default(uuid())
+  contentId String   @unique
+  questions Json // Store array of { question: string, options: string[], correctIndex: number, explanation: string }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+}
+
+model StudyPlan {
+  id         String   @id @default(uuid())
+  userId     String
+  topic      String
+  difficulty String // Beginner, Intermediate, Advanced
+  startDate  DateTime
+  endDate    DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sessions StudySession[]
+  tasks    LearningTask[]
+  user     User           @relation(fields: [userId], references: [id])
+}
+
+model StudySession {
+  id          String   @id @default(uuid())
+  planId      String
+  dayOffset   Int // 0, 1, 2... from startDate
+  dayNumber   Int // 1, 2, 3... (for UI display)
+  date        DateTime // Actual date
+  topic       String // Sub-topic/Focus for the day
+  isCompleted Boolean  @default(false)
+
+  sessionTime String? // Suggested time (e.g., "09:00")
+  isPractice  Boolean @default(false)
+
+  taskId String?
+  task   LearningTask? @relation(fields: [taskId], references: [id])
+
+  contentId String?
+  content   Content? @relation(fields: [contentId], references: [id])
+
+  plan             StudyPlan         @relation(fields: [planId], references: [id])
+  learningSessions LearningSession[]
+}
+
+model Tag {
+  id       String       @id @default(uuid())
+  name     String       @unique
+  contents ContentTag[]
+}
+
+model ContentTag {
+  contentId String
+  tagId     String
+  content   Content @relation(fields: [contentId], references: [id])
+  tag       Tag     @relation(fields: [tagId], references: [id])
+
+  @@id([contentId, tagId])
+}
+
+model LearningSession {
+  id          String    @id @default(uuid())
+  userId      String
+  contentId   String
+  startTime   DateTime  @default(now())
+  endTime     DateTime?
+  duration    Int? // Computed duration in seconds
+  isCompleted Boolean   @default(false)
+
+  studySessionId String?
+
+  user         User               @relation(fields: [userId], references: [id])
+  content      Content            @relation(fields: [contentId], references: [id])
+  studySession StudySession?      @relation(fields: [studySessionId], references: [id])
+  dailyTaskId  String?
+  dailyTask    DailyTask?         @relation(fields: [dailyTaskId], references: [id])
+  interactions InteractionEvent[]
+
+  @@index([userId])
+}
+
+model InteractionEvent {
+  id        String          @id @default(uuid())
+  sessionId String
+  type      InteractionType
+  timestamp DateTime        @default(now())
+  metadata  Json? // Additional details
+
+  session LearningSession @relation(fields: [sessionId], references: [id])
+
+  userId String // Denormalized for query speed
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+}
+
+model XPTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  amount    Int
+  source    String // "SESSION", "CHALLENGE", "BONUS"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Challenge {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  xpReward    Int
+  startDate   DateTime
+  endDate     DateTime
+  type        ChallengeType @default(DAILY)
+
+  userChallenges UserChallenge[]
+}
+
+enum ChallengeType {
+  DAILY
+  WEEKLY
+  SEASONAL
+  ACHIEVEMENT
+}
+
+model UserChallenge {
+  id          String    @id @default(uuid())
+  userId      String
+  challengeId String
+  progress    Int       @default(0)
+  target      Int // Target value to complete
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+
+  user      User      @relation(fields: [userId], references: [id])
+  challenge Challenge @relation(fields: [challengeId], references: [id])
+
+  @@unique([userId, challengeId])
+}
+
+model Badge {
+  id          String @id @default(uuid())
+  name        String
+  description String
+  iconUrl     String
+  category    String @default("GLOBAL") // "GLOBAL", "REACT", "CSS", etc.
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  badge Badge @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+}
+
+model ReminderSchedule {
+  id         String    @id @default(uuid())
+  userId     String
+  time       String // HH:MM
+  days       Int[] // Array of day indices (0=Sun, 6=Sat)
+  isEnabled  Boolean   @default(true)
+  lastSentAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model NotificationLog {
+  id      String   @id @default(uuid())
+  userId  String
+  type    String // "REMINDER", "REPORT", "ALERT"
+  channel String // "PUSH", "EMAIL"
+  status  String // "SENT", "FAILED"
+  sentAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model WeeklyReport {
+  id                  String   @id @default(uuid())
+  userId              String
+  weekStartDate       DateTime // User's timezone start
+  totalSessions       Int
+  totalProductiveMins Int
+  score               Float // Social Media Reduction Proxy Score
+  chartData           Json // Precomputed JSON for charts
+  createdAt           DateTime @default(now())
+
+  @@unique([userId, weekStartDate])
+}
+
+model FlagCase {
+  id         String     @id @default(uuid())
+  contentId  String
+  reporterId String
+  reason     FlagReason
+  details    String?
+  status     FlagStatus @default(PENDING)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  content  Content @relation(fields: [contentId], references: [id])
+  reporter User    @relation("Reporter", fields: [reporterId], references: [id])
+
+  moderatorId  String?
+  moderator    User?   @relation("Moderator", fields: [moderatorId], references: [id])
+  decisionNote String?
+
+  @@index([status])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String
+  target    String?
+  details   Json?
+  timestamp DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id])
+}
+
+model LearningSchedule {
+  id        String   @id @default(uuid())
+  userId    String
+  topic     String
+  dayOfWeek Int // 0-6 (Sunday-Saturday)
+  startTime String // HH:MM format
+  duration  Int // minutes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model LearningTask {
+  id          String   @id @default(uuid())
+  planId      String
+  title       String
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  plan     StudyPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  sessions StudySession[]
+
+  @@index([planId])
+}
+
+model DailyPlan {
+  id           String   @id @default(uuid())
+  userId       String
+  topic        String
+  date         DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Link to course planner (optional - for backward compatibility)
+  coursePlanId String?
+  coursePlan   CoursePlan? @relation(fields: [coursePlanId], references: [id])
+
+  user  User        @relation(fields: [userId], references: [id])
+  tasks DailyTask[]
+
+  @@unique([userId, date])
+}
+
+enum DailyTaskType {
+  STUDY
+  BREAK
+  STUDY_PLAN_TASK
+}
+
+model DailyTask {
+  id          String        @id @default(uuid())
+  dailyPlanId String
+  title       String
+  type        DailyTaskType @default(STUDY)
+  startTime   String // HH:MM
+  duration    Int // in minutes
+  isCompleted Boolean       @default(false)
+
+  contentId String?
+  content   Content? @relation(fields: [contentId], references: [id])
+
+  // Link to a study plan task if this was imported
+  studyPlanTaskId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dailyPlan DailyPlan @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+  learningSessions LearningSession[]
+}
+
+// ============================================================
+// ADAPTIVE COURSE PLANNER
+// ============================================================
+
+enum CourseStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model CoursePlan {
+  id        String       @id @default(uuid())
+  userId    String
+  topic     String       // e.g. "Web Development"
+  dayNumber Int          @default(1)
+  status    CourseStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id])
+  topicNodes  CourseTopicNode[]
+  performance DailyPerformance[]
+  plans       DailyPlan[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model CourseTopicNode {
+  id         String  @id @default(uuid())
+  courseId   String
+  topicName  String  // e.g. "HTML Basics", "CSS Flexbox"
+  orderIndex Int     // 0, 1, 2...
+  isMastered Boolean @default(false)
+  isUnlocked Boolean @default(false)
+
+  course       CoursePlan       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  performances DailyPerformance[]
+
+  @@index([courseId, orderIndex])
+}
+
+model DailyPerformance {
+  id             String   @id @default(uuid())
+  courseId       String
+  topicNodeId    String
+  dayNumber      Int
+  completionRate Float    @default(0)   // 0.0 - 1.0
+  avgQuizScore   Float    @default(0)   // 0.0 - 1.0
+  tasksTotal     Int      @default(0)
+  tasksCompleted Int      @default(0)
+  recordedAt     DateTime @default(now())
+
+  course    CoursePlan      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topicNode CourseTopicNode @relation(fields: [topicNodeId], references: [id])
+
+  @@unique([courseId, dayNumber])
+  @@index([courseId])
+}
+
+// Achievement System - Themes
+model Theme {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  cssConfig Json     // { primary, secondary, background, text, accent, gradient }
+  xpCost    Int      @default(0)
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  userThemes UserTheme[]
+}
+
+model UserTheme {
+  id         String   @id @default(uuid())
+  userId     String
+  themeId    String
+  unlockedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme Theme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, themeId])
+}

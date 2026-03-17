@@ -3,6 +3,8 @@ import { prisma } from '../db';
 import { AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { GamificationService } from '../services/gamification.service';
+import { reportQueue } from '../jobs/queues';
+import { startOfWeek } from 'date-fns';
 
 const StartSessionSchema = z.object({
   contentId: z.string(),
@@ -140,6 +142,13 @@ export const endSession = async (req: AuthRequest, res: Response) => {
     await GamificationService.updateStreak(userId);
     await GamificationService.awardXP(userId, computedDuration, 'SESSION');
     await GamificationService.updateChallengeProgress(userId, 'SESSION');
+
+    // Trigger report update for current week
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
+    await reportQueue.add('generate-single', { 
+        userId, 
+        weekStartDate: weekStart.toISOString() 
+    });
 
     res.json(updatedSession);
   } catch (error: any) {

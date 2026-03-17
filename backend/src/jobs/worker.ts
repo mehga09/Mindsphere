@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
-import { QUEUES, notificationQueue } from './queues';
+import { QUEUES, notificationQueue, reportQueue } from './queues';
 import { prisma } from '../db';
 import webpush from 'web-push';
 
@@ -22,6 +22,26 @@ import { LlmService } from '../services/llm.service';
 const emailService = new EmailService();
 
 const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
+  if (job.data.triggerAll) {
+    console.log('Triggering reports for all users...');
+    const users = await prisma.user.findMany({ select: { id: true } });
+    
+    // Calculate start of current week (Monday 00:00:00)
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const weekStartDate = new Date(now.setDate(diff));
+    weekStartDate.setHours(0, 0, 0, 0);
+
+    for (const user of users) {
+      await reportQueue.add('generate-single', { 
+        userId: user.id, 
+        weekStartDate: weekStartDate.toISOString() 
+      });
+    }
+    return;
+  }
+
   console.log(`Processing report job ${job.id}`);
   const { userId, weekStartDate } = job.data;
 
@@ -29,12 +49,21 @@ const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
   const end = new Date(start);
   end.setDate(end.getDate() + 7);
 
-  // 1. Fetch Sessions
+  // 1. Fetch Sessions with Content and Tags
   const sessions = await prisma.learningSession.findMany({
     where: {
       userId,
       startTime: { gte: start, lt: end },
       isCompleted: true
+    },
+    include: {
+      content: {
+        include: {
+          tags: {
+            include: { tag: true }
+          }
+        }
+      }
     }
   });
 
@@ -43,8 +72,6 @@ const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
   const totalProductiveMins = Math.round(sessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60);
 
   // 3. Social Media Reduction Score (Proxy)
-  // Assumption: Every minute spent here is a minute NOT doomscrolling.
-  // Target: 10 hours/week (600 mins) = 100% score (Hard Mode).
   const score = Math.min(100, Math.round((totalProductiveMins / 600) * 100));
 
   // 4. Generate Chart Data (Daily Breakdown)
@@ -59,15 +86,31 @@ const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
     };
   });
 
+  const subjectMap = new Map<string, number>();
+
   sessions.forEach(s => {
     const dayIndex = Math.floor((s.startTime.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const mins = Math.round((s.duration || 0) / 60);
+    
     if (dayIndex >= 0 && dayIndex < 7) {
-      dailyStats[dayIndex].minutes += Math.round((s.duration || 0) / 60);
+      dailyStats[dayIndex].minutes += mins;
+    }
+
+    if (s.content && s.content.tags) {
+        s.content.tags.forEach(ct => {
+            const tagName = ct.tag.name;
+            subjectMap.set(tagName, (subjectMap.get(tagName) || 0) + mins);
+        });
     }
   });
 
+  const subjectData = Array.from(subjectMap.entries()).map(([subject, minutes]) => ({
+      subject,
+      minutes,
+      fullMark: 100
+  }));
+
   // 5. Save Report
-  // Upsert to avoid duplicates if job runs twice
   await prisma.weeklyReport.upsert({
     where: {
       userId_weekStartDate: { userId, weekStartDate: start }
@@ -76,7 +119,10 @@ const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
       totalSessions,
       totalProductiveMins,
       score,
-      chartData: dailyStats
+      chartData: {
+          daily: dailyStats,
+          subjects: subjectData
+      }
     },
     create: {
       userId,
@@ -84,7 +130,10 @@ const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
       totalSessions,
       totalProductiveMins,
       score,
-      chartData: dailyStats
+      chartData: {
+          daily: dailyStats,
+          subjects: subjectData
+      }
     }
   });
 
@@ -101,7 +150,7 @@ const reportWorker = new Worker(QUEUES.REPORTS, async (job: Job) => {
   // 7. Send Email (Gmail)
   try {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return; // user is User, not null here
+    if (!user) return; 
     if (user.email) {
       await emailService.sendWeeklyReport(user.email, user.name || 'User', score, totalProductiveMins);
       console.log(`Email report sent to ${user.email}`);
@@ -273,18 +322,30 @@ const dailyRecommendationWorker = new Worker(QUEUES.DAILY_RECOMMENDATIONS, async
 export const initWorkers = async () => {
   console.log('Workers initialized');
 
-  // Schedule Daily Job (e.g., every day at 09:00 AM)
-  // repeatable job
+  // Schedule Daily Jobs
   try {
+    // 1. Daily Recommendations (09:00 AM)
     await dailyRecommendationQueue.add(
       'daily-send',
       {},
       {
-        repeat: { pattern: '0 9 * * *' } // Cron pattern: At 09:00
+        repeat: { pattern: '0 9 * * *' } 
       }
     );
     console.log('Daily Recommendation Job Scheduled');
+
+    // 2. Daily Report Generation (Midnight)
+    // For Dev: Let's also trigger it now if possible, but standard is midnight
+    await reportQueue.add(
+      'daily-report-all',
+      { triggerAll: true },
+      {
+        repeat: { pattern: '0 0 * * *' }
+      }
+    );
+    console.log('Daily Report Job Scheduled');
+
   } catch (e) {
-    console.error('Failed to schedule daily job', e);
+    console.error('Failed to schedule daily jobs', e);
   }
 };

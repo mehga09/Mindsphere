@@ -136,12 +136,17 @@ export const setActiveTheme = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Temp endpoint to seed badges and themes.
+ * Temp endpoint to seed badges, themes, and challenges.
  */
 export const seedDefaultData = async (req: Request, res: Response) => {
     try {
         await GamificationService.seed();
         
+        // Seed default challenges
+        const { ChallengeService } = await import('../services/challenge.service');
+        const challengeService = new ChallengeService();
+        await challengeService.seedDefaultChallenges();
+
         // Seed default theme
         await prisma.theme.upsert({
             where: { name: 'Mindsphere Purple' },
@@ -175,7 +180,7 @@ export const seedDefaultData = async (req: Request, res: Response) => {
             }
         });
 
-        res.json({ success: true, message: 'Seeded badges and themes' });
+        res.json({ success: true, message: 'Seeded badges, themes, and challenges' });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

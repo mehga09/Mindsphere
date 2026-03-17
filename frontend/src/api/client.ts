@@ -16,14 +16,23 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+let refreshTokenPromise: Promise<any> | null = null;
+
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/refresh')) {
       originalRequest._retry = true;
+
+      if (!refreshTokenPromise) {
+        refreshTokenPromise = client.post('/api/auth/refresh').finally(() => {
+          refreshTokenPromise = null;
+        });
+      }
+
       try {
-        const res = await client.post('/api/auth/refresh');
+        const res = await refreshTokenPromise;
         const newAccessToken = res.data.accessToken;
         
         // Persist new token
